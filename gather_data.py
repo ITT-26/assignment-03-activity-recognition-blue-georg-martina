@@ -265,3 +265,4 @@ while True:
     elif time.time() > w_end_time:
         finalize_workout()
         iterator = 1
+        started = False
