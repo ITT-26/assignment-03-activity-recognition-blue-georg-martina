@@ -4,6 +4,8 @@
 # To change the frequency of the data collection or the placement of the device,
 # the program needs to be restarted and the user needs to input the desired settings before starting the workout.
 
+# Note 2: This version of the code doesn't record gyroscope data, for devices that don't have a gyroscope.
+
 import time
 import pandas as pd
 from DIPPID import SensorUDP
@@ -48,13 +50,12 @@ dict_tmp = {"id": [], "timestamp": [], "gyro": [], "acc": []}
 
 # variables to store current data
 current_acc_data = None
-current_gyro_data = None
+# current_gyro_data = None
 
 # to see if any workout should be able to start
 ready = False
 
 # once the workout is complete, recorded data is saved to a csv file
-
 
 def finalize_workout():
     global current_workout, dict_tmp, working_out, ready, started
@@ -70,9 +71,10 @@ def finalize_workout():
         "acc_x": [d["x"] for d in dict_tmp["acc"]],
         "acc_y": [d["y"] for d in dict_tmp["acc"]],
         "acc_z": [d["z"] for d in dict_tmp["acc"]],
-        "gyro_x": [d["x"] for d in dict_tmp["gyro"]],
-        "gyro_y": [d["y"] for d in dict_tmp["gyro"]],
-        "gyro_z": [d["z"] for d in dict_tmp["gyro"]],
+        # since the device doesn't have a gyroscope, we fill the gyro data with 0s
+        "gyro_x": [0.0] * len(dict_tmp["id"]),
+        "gyro_y": [0.0] * len(dict_tmp["id"]),
+        "gyro_z": [0.0] * len(dict_tmp["id"]),
     })
 
     # clear temporary dictionary
@@ -91,7 +93,6 @@ def finalize_workout():
     ready = True
 
 # callback function for button press
-
 
 def handle_button_press(data, button_id):
     global current_workout, now, w_start_time, w_end_time, working_out, ready
@@ -144,8 +145,7 @@ def handle_button_4(data):
 
 # callbacks for sensor data -> stores data in global variables
 def gyro_callback(data):
-    global current_gyro_data
-    current_gyro_data = data
+    pass
 
 
 def acc_callback(data):
@@ -259,7 +259,7 @@ while True:
             iterator += 1
             dict_tmp["timestamp"].append(time.time())
             dict_tmp["acc"].append(current_acc_data)
-            dict_tmp["gyro"].append(current_gyro_data)
+            #dict_tmp["gyro"].append(current_gyro_data)
             last_time = time.time()
 
     # workout complete
