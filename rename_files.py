@@ -15,6 +15,7 @@ for root, folders, files in os.walk(parent_folder):
             # change "jumping_jacks" to "jumpingjacks" in the filename
             new_name = new_name.replace("jumping_jacks", "jumpingjacks")
 
+        # check if the filename contains "Viet-Hang-Thu"
         if "Viet-Hang-Thu" in new_name:
 
             # change "Viet-Hang-Thu" to "thu" in the filename
