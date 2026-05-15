@@ -6,6 +6,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import seaborn as sns
 import matplotlib.pyplot as plt
 import random
+import copy
 
 # %%
 # get all csv files in the data folder
@@ -203,48 +204,131 @@ for key, dfs in all_timestamp_normaized_dfs.items():
         normalized_df[cols_to_scale] = normalized_tmp
         all_normalized_df_lists[key].append(normalized_df)
 
+
+# %%
+
+def get_median_amplitude(df, col):
+    return df[col].median()
+
+
+def get_std(df, col):
+    return df[col].std()
+
+
+def get_dominant_frequency(df, col, sampling_rate):
+    n = len(df)
+    freqs = np.fft.rfftfreq(n, d=1/sampling_rate)
+    fft_magnitude = np.abs(np.fft.rfft(df[col]))
+
+    dominant_freq = freqs[1:][np.argmax(fft_magnitude[1:])]
+    return dominant_freq
+
 # %%
 
 
+def append_values_to_dict(dict, activity_label, col_features):
+    dict['activity_label'].append(activity_label)
+    for feature_name, feature_value in col_features.items():
+        dict[feature_name].append(feature_value)
 
-# change file names (jumping_jacks -> jumpingjacks, name problems)
 
-# go through all the csv files in the data folder
-# convert into dataframes. maybe add columns for frequency, placement and activity label (int)
+dict_template = {'activity_label': [],
+                 'acc_x_median': [], 'acc_x_std': [], 'acc_x_dominant_freq': [],
+                 'acc_y_median': [], 'acc_y_std': [], 'acc_y_dominant_freq': [],
+                 'acc_z_median': [], 'acc_z_std': [], 'acc_z_dominant_freq': [],
+                 'gyro_x_median': [], 'gyro_x_std': [], 'gyro_x_dominant_freq': [],
+                 'gyro_y_median': [], 'gyro_y_std': [], 'gyro_y_dominant_freq': [],
+                 'gyro_z_median': [], 'gyro_z_std': [], 'gyro_z_dominant_freq': []}
 
-# outlier detection and handling? <<===
+features_20Hz_hand_dict = copy.deepcopy(dict_template)
+features_20Hz_pocket_dict = copy.deepcopy(dict_template)
+features_100Hz_hand_dict = copy.deepcopy(dict_template)
+features_100Hz_pocket_dict = copy.deepcopy(dict_template)
 
-# pre-processing: standard and minmax normalization, [low-pass filter (maybe it would make sense only for 100 Hz)], NaN handling (for each axis in accel and gyro)
+cols_to_evaluate = ['acc_x', 'acc_y', 'acc_z', 'gyro_x', 'gyro_y', 'gyro_z']
 
-# treat different sampling frequencies separately, and also placement separately
-#       - frequency: we can then choose only one for the final model
-#       - placement: maybe have two models in the end, and ask user to choose placement before starting the activity recognition to use the correct model
+for key, dfs in all_normalized_df_lists.items():
 
-# X
+    for df in dfs:
 
-# feature extraction - for each axis in accel an gyro, extract:
-#       - max amplitude -> doesn't make much sense since it's normalized -> but normalization makes sense because of height differences between users
-#       - mean amplitude -> without outliers
-#       - median amplitude -> with outliers
-#       - standard deviation or variance
-#       - dominant frequency (using FFT)
-#       - if we need more features, we can try: spectral energy
-# in total: 6 axes (accel x,y,z and gyro x,y,z) * 3 features = 18 features per sample
-# create new data frames with the extracted features and the activity labels / different frequency and placement groups
-# columns: ['activity_label', 'acc_x_median', 'acc_x_std', 'acc_x_dominant_freq', 'acc_y_median', 'acc_y_std', ...]
+        activity = df['activity_label'].iloc[0]
 
-# plot the features for each activity label to see if there are any patterns or differences between the activities
+        sampling_rate = None
+        if '20Hz' in key:
+            sampling_rate = 20
+        elif '100Hz' in key:
+            sampling_rate = 100
 
-# choose the most relevant features
-#       - we could run the models with different combinations of n features and see which ones give the best results
-#       - PCA?
+        col_features = {}
 
-# split the data into training and testing sets
-# try different split ratios, kernels, etc.
+        for col in cols_to_evaluate:
+            median_amplitude = get_median_amplitude(df, col)
+            std = get_std(df, col)
+            dominant_freq = get_dominant_frequency(df, col, sampling_rate)
 
-# evaluate the models using appropriate metrics (accuracy, precision, recall, F1-score)
-# choose best model
+            col_features[f'{col}_median'] = median_amplitude
+            col_features[f'{col}_std'] = std
+            col_features[f'{col}_dominant_freq'] = dominant_freq
 
-# create application for real-time activity recognition using the best model & using pyglet
+        match key:
+            case '20Hz_hand':
+                append_values_to_dict(
+                    features_20Hz_hand_dict, activity, col_features)
 
-# DOCUMENT EVERYTHING !!!
+            case '20Hz_pocket':
+                append_values_to_dict(
+                    features_20Hz_pocket_dict, activity, col_features)
+
+            case '100Hz_hand':
+                append_values_to_dict(
+                    features_100Hz_hand_dict, activity, col_features)
+
+            case '100Hz_pocket':
+                append_values_to_dict(
+                    features_100Hz_pocket_dict, activity, col_features)
+
+
+
+    # %%
+
+    # change file names (jumping_jacks -> jumpingjacks, name problems)
+
+    # go through all the csv files in the data folder
+    # convert into dataframes. maybe add columns for frequency, placement and activity label (int)
+
+    # outlier detection and handling? <<===
+
+    # pre-processing: standard and minmax normalization, [low-pass filter (maybe it would make sense only for 100 Hz)], NaN handling (for each axis in accel and gyro)
+
+    # treat different sampling frequencies separately, and also placement separately
+    #       - frequency: we can then choose only one for the final model
+    #       - placement: maybe have two models in the end, and ask user to choose placement before starting the activity recognition to use the correct model
+
+    # X
+
+    # feature extraction - for each axis in accel an gyro, extract:
+    #       - max amplitude -> doesn't make much sense since it's normalized -> but normalization makes sense because of height differences between users
+    #       - mean amplitude -> without outliers
+    #       - median amplitude -> with outliers
+    #       - standard deviation or variance
+    #       - dominant frequency (using FFT)
+    #       - if we need more features, we can try: spectral energy
+    # in total: 6 axes (accel x,y,z and gyro x,y,z) * 3 features = 18 features per sample
+    # create new data frames with the extracted features and the activity labels / different frequency and placement groups
+    # columns: ['activity_label', 'acc_x_median', 'acc_x_std', 'acc_x_dominant_freq', 'acc_y_median', 'acc_y_std', ...]
+
+    # plot the features for each activity label to see if there are any patterns or differences between the activities
+
+    # choose the most relevant features
+    #       - we could run the models with different combinations of n features and see which ones give the best results
+    #       - PCA?
+
+    # split the data into training and testing sets
+    # try different split ratios, kernels, etc.
+
+    # evaluate the models using appropriate metrics (accuracy, precision, recall, F1-score)
+    # choose best model
+
+    # create application for real-time activity recognition using the best model & using pyglet
+
+    # DOCUMENT EVERYTHING !!!
