@@ -99,9 +99,9 @@ print('everything checked')
 
 # %%
 
-for dfs in all_df_lists.values():
-    for df in dfs:
-        df.dropna()
+for key, dfs in all_df_lists.items():
+    for i, df in enumerate(dfs):
+        dfs[i] = df.dropna().reset_index(drop=True)
 
 # %%
 
