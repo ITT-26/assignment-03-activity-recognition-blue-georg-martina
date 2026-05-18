@@ -1,8 +1,8 @@
 import time
+
 from DIPPID import SensorUDP
 import os
 import joblib
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import pandas as pd
 import numpy as np
 from collections import deque
@@ -71,8 +71,6 @@ current_features = None
 features_list = []
 MAX_LEN_FEATURES_LIST = 5
 
-scaler = StandardScaler()
-
 prediction_history = []
 MAX_HISTORY_LENGTH = 5
 
@@ -124,23 +122,6 @@ def extract_features():
     gyro_x = np.array([d["x"] for d in dict_tmp["gyro"]], dtype=float)
     gyro_y = np.array([d["y"] for d in dict_tmp["gyro"]], dtype=float)
     gyro_z = np.array([d["z"] for d in dict_tmp["gyro"]], dtype=float)
-
-    raw_matrix = np.column_stack([
-        acc_x, acc_y, acc_z,
-        gyro_x, gyro_y, gyro_z
-    ])
-
-    mean = raw_matrix.mean(axis=0)
-    std = raw_matrix.std(axis=0, ddof=0)
-    std[std == 0] = 1.0
-    scaled_matrix = (raw_matrix - mean) / std
-
-    acc_x = scaled_matrix[:, 0]
-    acc_y = scaled_matrix[:, 1]
-    acc_z = scaled_matrix[:, 2]
-    gyro_x = scaled_matrix[:, 3]
-    gyro_y = scaled_matrix[:, 4]
-    gyro_z = scaled_matrix[:, 5]
 
     acc_magnitude = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
     gyro_magnitude = np.sqrt(gyro_x**2 + gyro_y**2 + gyro_z**2)
@@ -224,6 +205,8 @@ def handle_button_2(data):
 
     if data == 0 or not working_out:
         return
+    
+    print("STOP BUTTON RECEIVED")
 
     working_out = False
 
@@ -255,26 +238,6 @@ sensor.register_callback("button_2", handle_button_2)
 sensor.register_callback('accelerometer', acc_callback)
 sensor.register_callback('gyroscope', gyro_callback)
 
-# select frequency
-while freq not in freqs:
-    chosen_freq = input("Press 1 for 20Hz, 2 for 100Hz: ")
-    if chosen_freq == "1":
-        freq = 20
-    elif chosen_freq == "2":
-        freq = 100
-    else:
-        print("Invalid input, please try again")
-
-# select placement
-while placement not in placements:
-    chosen_placement = input("Press 1 for hand, 2 for pocket: ")
-    if chosen_placement == "1":
-        placement = "hand"
-    elif chosen_placement == "2":
-        placement = "pocket"
-    else:
-        print("Invalid input, please try again")
-
 
 # workout loop
 while True:
@@ -285,23 +248,23 @@ while True:
         continue
 
     # workout in progress
-    else:
 
-        # time for measurement
-        if time.time() - last_time >= 1/freq or last_time == 0:
-            dict_tmp["acc"].append(current_acc_data)
-            dict_tmp["gyro"].append(current_gyro_data)
+    # time for measurement
+    if time.time() - last_time >= 1/freq or last_time == 0:
+        dict_tmp["acc"].append(current_acc_data)
+        dict_tmp["gyro"].append(current_gyro_data)
+        last_time = time.time()
 
-            last_time = time.time()
+    # window complete
+    if time.time() >= next_window_start:
+        if not working_out:
+            continue
+        features_line = extract_features()
+        features_list.append(features_line)
+        classify_activity(features_line)
+        majority_prediction = get_majority_prediction()
+        next_window_start = time.time() + window_size_seconds * (1 - OVERLAP)
+        # print the majority prediction
+        print(f"Predicted activity: {workouts[majority_prediction]}")
 
-        # window complete
-        if time.time() >= next_window_start:
-            if not working_out:
-                continue
-            features_line = extract_features()
-            features_list.append(features_line)
-            classify_activity(features_line)
-            majority_prediction = get_majority_prediction()
-            next_window_start = time.time() + window_size_seconds * (1 - OVERLAP)
-            # print the majority prediction
-            print(f"Predicted activity: {workouts[majority_prediction]}")
+    time.sleep(0.001)

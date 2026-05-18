@@ -6,6 +6,8 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import pandas as pd
 import numpy as np
 
+from collections import deque
+
 PORT = 5700
 sensor = SensorUDP(PORT)
 
@@ -30,7 +32,7 @@ window_size_seconds = 2
 
 WINDOW_SIZE_20HZ = window_size_seconds * 20
 WINDOW_SIZE_100HZ = window_size_seconds * 100
-OVERLAP = 0.75
+OVERLAP = 0.5
 
 
 current_acc_data = None
@@ -79,34 +81,37 @@ def extract_features():
         "gyro_z": gyro_z
     })
 
-    scaled_features = scaler.fit_transform(df_tmp)
+    window_features = df_tmp.copy()
 
-    scaled_features = pd.DataFrame(scaled_features, columns=df_tmp.columns)
-    scaled_features['acc_magnitude'] = np.sqrt(
-        scaled_features['acc_x']**2 + scaled_features['acc_y']**2 + scaled_features['acc_z']**2)
-    scaled_features['gyro_magnitude'] = np.sqrt(
-        scaled_features['gyro_x']**2 + scaled_features['gyro_y']**2 + scaled_features['gyro_z']**2)
+    window_features['acc_magnitude'] = np.sqrt(
+        window_features['acc_x']**2 +
+        window_features['acc_y']**2 + window_features['acc_z']**2
+    )
+    window_features['gyro_magnitude'] = np.sqrt(
+        window_features['gyro_x']**2 +
+        window_features['gyro_y']**2 + window_features['gyro_z']**2
+    )
 
     feature_list = {}
     for col in cols_to_evaluate:
-        feature_list[f'{col}_max'] = scaled_features[col].max()
-        feature_list[f'{col}_median'] = scaled_features[col].median()
-        feature_list[f'{col}_std'] = scaled_features[col].std()
+        feature_list[f'{col}_max'] = window_features[col].max()
+        feature_list[f'{col}_median'] = window_features[col].median()
+        feature_list[f'{col}_std'] = window_features[col].std()
         feature_list[f'{col}_dominant_freq'] = get_dominant_frequency(
-            scaled_features[col], freq)
+            window_features[col], freq)
 
     feature_list['acc_x_y_corr'] = get_correlation(
-        scaled_features, 'acc_x', 'acc_y')
+        window_features, 'acc_x', 'acc_y')
     feature_list['acc_x_z_corr'] = get_correlation(
-        scaled_features, 'acc_x', 'acc_z')
+        window_features, 'acc_x', 'acc_z')
     feature_list['acc_y_z_corr'] = get_correlation(
-        scaled_features, 'acc_y', 'acc_z')
+        window_features, 'acc_y', 'acc_z')
     feature_list['gyro_x_y_corr'] = get_correlation(
-        scaled_features, 'gyro_x', 'gyro_y')
+        window_features, 'gyro_x', 'gyro_y')
     feature_list['gyro_x_z_corr'] = get_correlation(
-        scaled_features, 'gyro_x', 'gyro_z')
+        window_features, 'gyro_x', 'gyro_z')
     feature_list['gyro_y_z_corr'] = get_correlation(
-        scaled_features, 'gyro_y', 'gyro_z')
+        window_features, 'gyro_y', 'gyro_z')
 
     feature_list_df = pd.DataFrame([feature_list])
     return feature_list_df
@@ -175,13 +180,14 @@ def handle_button_2(data):
 
     if data == 0 or not working_out:
         return
+    
 
     working_out = False
     dict_tmp = {"id": [], "timestamp": [], "gyro": [], "acc": []}
     current_features = None
     features_list = []
     last_time = 0
-    next_window_start = None
+    next_window_start = 0
     prediction_history.clear()
 
 
@@ -252,6 +258,9 @@ while True:
             if not working_out:
                 continue
             features_line = extract_features()
+            # print("Feature columns:", features_line.columns.tolist())
+            # print("Feature shape:", features_line.shape)
+            # print("Sample values:", features_line.values)
             features_list.append(features_line)
             classify_activity(features_line)
             majority_prediction = get_majority_prediction()
