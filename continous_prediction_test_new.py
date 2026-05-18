@@ -5,6 +5,7 @@ import joblib
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import pandas as pd
 import numpy as np
+from collections import deque
 
 PORT = 5700
 sensor = SensorUDP(PORT)
@@ -30,13 +31,42 @@ window_size_seconds = 2
 
 WINDOW_SIZE_20HZ = window_size_seconds * 20
 WINDOW_SIZE_100HZ = window_size_seconds * 100
-OVERLAP = 0.75
+OVERLAP = 0.5
 
 
 current_acc_data = None
 current_gyro_data = None
 
-dict_tmp = {"id": [], "timestamp": [], "gyro": [], "acc": []}
+buffer_len = WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ
+
+
+# select frequency
+while freq not in freqs:
+    chosen_freq = input("Press 1 for 20Hz, 2 for 100Hz: ")
+    if chosen_freq == "1":
+        freq = 20
+    elif chosen_freq == "2":
+        freq = 100
+    else:
+        print("Invalid input, please try again")
+
+# select placement
+while placement not in placements:
+    chosen_placement = input("Press 1 for hand, 2 for pocket: ")
+    if chosen_placement == "1":
+        placement = "hand"
+    elif chosen_placement == "2":
+        placement = "pocket"
+    else:
+        print("Invalid input, please try again")
+
+buffer_len = WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ
+
+dict_tmp = {
+    "acc": deque(maxlen=buffer_len),
+    "gyro": deque(maxlen=buffer_len),
+}
+
 current_features = None
 features_list = []
 MAX_LEN_FEATURES_LIST = 5
@@ -57,59 +87,92 @@ workouts = {
 }
 
 
+def get_correlation_array(a, b):
+    if np.std(a) == 0 or np.std(b) == 0:
+        return 0.0
+    corr = np.corrcoef(a, b)[0, 1]
+    return float(corr) if not np.isnan(corr) else 0.0
+
+
+def get_dominant_frequency(series, sampling_rate):
+    series = np.asarray(series)
+    n = len(series)
+    if n < 2:
+        return 0.0
+
+    freqs = np.fft.rfftfreq(n, d=1 / sampling_rate)
+    fft_magnitude = np.abs(np.fft.rfft(series))
+
+    if len(fft_magnitude) <= 1:
+        return 0.0
+
+    return float(freqs[1:][np.argmax(fft_magnitude[1:])])
+
+
 def extract_features():
     global dict_tmp
 
-    cols_to_evaluate = ['acc_x', 'acc_y', 'acc_z', 'gyro_x',
-                        'gyro_y', 'gyro_z', 'acc_magnitude', 'gyro_magnitude']
+    cols_to_evaluate = [
+        "acc_x", "acc_y", "acc_z",
+        "gyro_x", "gyro_y", "gyro_z",
+        "acc_magnitude", "gyro_magnitude"
+    ]
 
-    acc_x = [d["x"] for d in dict_tmp["acc"]]
-    acc_y = [d["y"] for d in dict_tmp["acc"]]
-    acc_z = [d["z"] for d in dict_tmp["acc"]]
-    gyro_x = [d["x"] for d in dict_tmp["gyro"]]
-    gyro_y = [d["y"] for d in dict_tmp["gyro"]]
-    gyro_z = [d["z"] for d in dict_tmp["gyro"]]
+    acc_x = np.array([d["x"] for d in dict_tmp["acc"]], dtype=float)
+    acc_y = np.array([d["y"] for d in dict_tmp["acc"]], dtype=float)
+    acc_z = np.array([d["z"] for d in dict_tmp["acc"]], dtype=float)
+    gyro_x = np.array([d["x"] for d in dict_tmp["gyro"]], dtype=float)
+    gyro_y = np.array([d["y"] for d in dict_tmp["gyro"]], dtype=float)
+    gyro_z = np.array([d["z"] for d in dict_tmp["gyro"]], dtype=float)
 
-    df_tmp = pd.DataFrame({
+    raw_matrix = np.column_stack([
+        acc_x, acc_y, acc_z,
+        gyro_x, gyro_y, gyro_z
+    ])
+
+    mean = raw_matrix.mean(axis=0)
+    std = raw_matrix.std(axis=0, ddof=0)
+    std[std == 0] = 1.0
+    scaled_matrix = (raw_matrix - mean) / std
+
+    acc_x = scaled_matrix[:, 0]
+    acc_y = scaled_matrix[:, 1]
+    acc_z = scaled_matrix[:, 2]
+    gyro_x = scaled_matrix[:, 3]
+    gyro_y = scaled_matrix[:, 4]
+    gyro_z = scaled_matrix[:, 5]
+
+    acc_magnitude = np.sqrt(acc_x**2 + acc_y**2 + acc_z**2)
+    gyro_magnitude = np.sqrt(gyro_x**2 + gyro_y**2 + gyro_z**2)
+
+    feature_arrays = {
         "acc_x": acc_x,
         "acc_y": acc_y,
         "acc_z": acc_z,
         "gyro_x": gyro_x,
         "gyro_y": gyro_y,
-        "gyro_z": gyro_z
-    })
-
-    scaled_features = scaler.fit_transform(df_tmp)
-
-    scaled_features = pd.DataFrame(scaled_features, columns=df_tmp.columns)
-    scaled_features['acc_magnitude'] = np.sqrt(
-        scaled_features['acc_x']**2 + scaled_features['acc_y']**2 + scaled_features['acc_z']**2)
-    scaled_features['gyro_magnitude'] = np.sqrt(
-        scaled_features['gyro_x']**2 + scaled_features['gyro_y']**2 + scaled_features['gyro_z']**2)
+        "gyro_z": gyro_z,
+        "acc_magnitude": acc_magnitude,
+        "gyro_magnitude": gyro_magnitude,
+    }
 
     feature_list = {}
     for col in cols_to_evaluate:
-        feature_list[f'{col}_max'] = scaled_features[col].max()
-        feature_list[f'{col}_median'] = scaled_features[col].median()
-        feature_list[f'{col}_std'] = scaled_features[col].std()
-        feature_list[f'{col}_dominant_freq'] = get_dominant_frequency(
-            scaled_features[col], freq)
+        values = feature_arrays[col]
+        feature_list[f"{col}_max"] = float(np.max(values))
+        feature_list[f"{col}_median"] = float(np.median(values))
+        feature_list[f"{col}_std"] = float(np.std(values, ddof=1))
+        feature_list[f"{col}_dominant_freq"] = get_dominant_frequency(
+            values, freq)
 
-    feature_list['acc_x_y_corr'] = get_correlation(
-        scaled_features, 'acc_x', 'acc_y')
-    feature_list['acc_x_z_corr'] = get_correlation(
-        scaled_features, 'acc_x', 'acc_z')
-    feature_list['acc_y_z_corr'] = get_correlation(
-        scaled_features, 'acc_y', 'acc_z')
-    feature_list['gyro_x_y_corr'] = get_correlation(
-        scaled_features, 'gyro_x', 'gyro_y')
-    feature_list['gyro_x_z_corr'] = get_correlation(
-        scaled_features, 'gyro_x', 'gyro_z')
-    feature_list['gyro_y_z_corr'] = get_correlation(
-        scaled_features, 'gyro_y', 'gyro_z')
+    feature_list["acc_x_y_corr"] = get_correlation_array(acc_x, acc_y)
+    feature_list["acc_x_z_corr"] = get_correlation_array(acc_x, acc_z)
+    feature_list["acc_y_z_corr"] = get_correlation_array(acc_y, acc_z)
+    feature_list["gyro_x_y_corr"] = get_correlation_array(gyro_x, gyro_y)
+    feature_list["gyro_x_z_corr"] = get_correlation_array(gyro_x, gyro_z)
+    feature_list["gyro_y_z_corr"] = get_correlation_array(gyro_y, gyro_z)
 
-    feature_list_df = pd.DataFrame([feature_list])
-    return feature_list_df
+    return pd.DataFrame([feature_list])
 
 
 def classify_activity(features_df_line):
@@ -143,20 +206,6 @@ def get_majority_prediction():
     return None
 
 
-# function to calculate the dominant frequency of a series using FFT
-def get_dominant_frequency(series, sampling_rate):
-    n = len(series)
-    freqs = np.fft.rfftfreq(n, d=1/sampling_rate)
-    fft_magnitude = np.abs(np.fft.rfft(series))
-    return freqs[1:][np.argmax(fft_magnitude[1:])]
-
-
-# function to calculate the correlation between two columns in a window, returning 0 if the correlation is NaN
-def get_correlation(window, col1, col2):
-    corr = window[col1].corr(window[col2])
-    return corr if not np.isnan(corr) else 0.0
-
-
 def handle_button_1(data):
     global now, next_window_start, freq, working_out
 
@@ -177,11 +226,17 @@ def handle_button_2(data):
         return
 
     working_out = False
-    dict_tmp = {"id": [], "timestamp": [], "gyro": [], "acc": []}
+
+    buffer_len = WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ
+    dict_tmp = {
+        "acc": deque(maxlen=buffer_len),
+        "gyro": deque(maxlen=buffer_len),
+    }
+
     current_features = None
     features_list = []
     last_time = 0
-    next_window_start = None
+    next_window_start = 0
     prediction_history.clear()
 
 
@@ -234,16 +289,8 @@ while True:
 
         # time for measurement
         if time.time() - last_time >= 1/freq or last_time == 0:
-            dict_tmp["id"].append(0)
-            dict_tmp["timestamp"].append(time.time())
             dict_tmp["acc"].append(current_acc_data)
             dict_tmp["gyro"].append(current_gyro_data)
-
-            if len(dict_tmp["id"]) > (WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ):
-                dict_tmp["id"].pop(0)
-                dict_tmp["timestamp"].pop(0)
-                dict_tmp["acc"].pop(0)
-                dict_tmp["gyro"].pop(0)
 
             last_time = time.time()
 
