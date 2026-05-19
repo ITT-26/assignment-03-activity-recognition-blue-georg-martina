@@ -12,7 +12,7 @@ sensor = SensorUDP(PORT)
 
 models = {}
 for key in ['20Hz_hand', '20Hz_pocket', '100Hz_hand', '100Hz_pocket']:
-    model_filename = f'models/{key}_svm_model.joblib'
+    model_filename = f'models_2/{key}_svm_model.joblib'
     models[key] = joblib.load(model_filename)
 
 freqs = [20, 100]
@@ -33,6 +33,8 @@ WINDOW_SIZE_20HZ = window_size_seconds * 20
 WINDOW_SIZE_100HZ = window_size_seconds * 100
 OVERLAP = 0.5
 
+CLASSIFIER_THRESHOLD = 0.97
+MAJORITY_THRESHOLD = 0.6
 
 current_acc_data = None
 current_gyro_data = None
@@ -72,7 +74,7 @@ features_list = []
 MAX_LEN_FEATURES_LIST = 5
 
 prediction_history = []
-MAX_HISTORY_LENGTH = 5
+MAX_HISTORY_LENGTH = MAX_LEN_FEATURES_LIST
 
 
 # mapping of model output to activity name
@@ -162,15 +164,16 @@ def classify_activity(features_df_line):
     model_key = f"{freq}Hz_{placement}"
     model = models.get(model_key)
     if model is not None:
+        proba = model.predict_proba(features_df_line)[0]
+        p_max = float(proba.max())
+        prediction = model.predict(features_df_line)[0]
 
-        prediction = model.predict(features_df_line)
-        # print rounded prediction probabilities for each class
-        # print(np.round(prediction, 2))
+        print(f"Confidence: {p_max:.2f} → {workouts.get(prediction, '?')}")
 
-        # print the predicted activity
-        prediction_history.append(prediction[0])
-        if len(prediction_history) > MAX_HISTORY_LENGTH:
-            prediction_history.pop(0)
+        if p_max >= CLASSIFIER_THRESHOLD:
+            prediction_history.append(prediction)
+            if len(prediction_history) > MAX_HISTORY_LENGTH:
+                prediction_history.pop(0)
 
 
 def get_majority_prediction():
@@ -181,7 +184,7 @@ def get_majority_prediction():
     # get the most common prediction in the history and return it if it appears over 50% of the time
     majority_prediction = max(set(prediction_history),
                               key=prediction_history.count)
-    if prediction_history.count(majority_prediction) > MAX_HISTORY_LENGTH / 2:
+    if prediction_history.count(majority_prediction) > MAX_HISTORY_LENGTH * MAJORITY_THRESHOLD:
         return majority_prediction
 
     return None
@@ -205,7 +208,7 @@ def handle_button_2(data):
 
     if data == 0 or not working_out:
         return
-    
+
     print("STOP BUTTON RECEIVED")
 
     working_out = False

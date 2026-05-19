@@ -125,8 +125,9 @@ def classify_activity(features_df_line):
     if model is not None:
 
         prediction = model.predict(features_df_line)
+        predictions = model.predict_proba(features_df_line)
         # print rounded prediction probabilities for each class
-        # print(np.round(prediction, 2))
+        print(np.round(predictions, 2))
 
         # print the predicted activity
         prediction_history.append(prediction[0])
