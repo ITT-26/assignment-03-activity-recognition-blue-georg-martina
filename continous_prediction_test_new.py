@@ -1,13 +1,11 @@
 import time
-
 from DIPPID import SensorUDP
-import os
 import joblib
 import pandas as pd
 import numpy as np
 from collections import deque
+from constants import *
 
-PORT = 5700
 sensor = SensorUDP(PORT)
 
 models = {}
@@ -15,8 +13,6 @@ for key in ['20Hz_hand', '20Hz_pocket', '100Hz_hand', '100Hz_pocket']:
     model_filename = f'models_2/{key}_svm_model.joblib'
     models[key] = joblib.load(model_filename)
 
-freqs = [20, 100]
-placements = ['hand', 'pocket']
 freq = None
 placement = None
 
@@ -26,24 +22,11 @@ last_time = 0
 
 working_out = False
 
-
-window_size_seconds = 2
-
-WINDOW_SIZE_20HZ = window_size_seconds * 20
-WINDOW_SIZE_100HZ = window_size_seconds * 100
-OVERLAP = 0.5
-
-CLASSIFIER_THRESHOLD = 0.97
-MAJORITY_THRESHOLD = 0.6
-
 current_acc_data = None
 current_gyro_data = None
 
-buffer_len = WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ
-
-
 # select frequency
-while freq not in freqs:
+while freq not in FREQUENCIES:
     chosen_freq = input("Press 1 for 20Hz, 2 for 100Hz: ")
     if chosen_freq == "1":
         freq = 20
@@ -53,7 +36,7 @@ while freq not in freqs:
         print("Invalid input, please try again")
 
 # select placement
-while placement not in placements:
+while placement not in PLACEMENTS:
     chosen_placement = input("Press 1 for hand, 2 for pocket: ")
     if chosen_placement == "1":
         placement = "hand"
@@ -63,6 +46,7 @@ while placement not in placements:
         print("Invalid input, please try again")
 
 buffer_len = WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ
+classifier_threshold = CLASSIFIER_THRESHOLDS[f"{freq}Hz_{placement}"]
 
 dict_tmp = {
     "acc": deque(maxlen=buffer_len),
@@ -70,11 +54,8 @@ dict_tmp = {
 }
 
 current_features = None
-features_list = []
-MAX_LEN_FEATURES_LIST = 5
 
 prediction_history = []
-MAX_HISTORY_LENGTH = MAX_LEN_FEATURES_LIST
 
 
 # mapping of model output to activity name
@@ -170,7 +151,7 @@ def classify_activity(features_df_line):
 
         print(f"Confidence: {p_max:.2f} → {workouts.get(prediction, '?')}")
 
-        if p_max >= CLASSIFIER_THRESHOLD:
+        if p_max >= classifier_threshold:
             prediction_history.append(prediction)
             if len(prediction_history) > MAX_HISTORY_LENGTH:
                 prediction_history.pop(0)
@@ -197,14 +178,14 @@ def handle_button_1(data):
         return
 
     now = time.time()
-    next_window_start = now + window_size_seconds
+    next_window_start = now + WINDOWS_SIZE_SECONDS
     working_out = True
 
 
 def handle_button_2(data):
 
     # resets data
-    global dict_tmp, current_features, features_list, working_out, last_time, next_window_start, prediction_history
+    global dict_tmp, current_features, working_out, last_time, next_window_start, prediction_history
 
     if data == 0 or not working_out:
         return
@@ -220,7 +201,6 @@ def handle_button_2(data):
     }
 
     current_features = None
-    features_list = []
     last_time = 0
     next_window_start = 0
     prediction_history.clear()
@@ -263,10 +243,9 @@ while True:
         if not working_out:
             continue
         features_line = extract_features()
-        features_list.append(features_line)
         classify_activity(features_line)
         majority_prediction = get_majority_prediction()
-        next_window_start = time.time() + window_size_seconds * (1 - OVERLAP)
+        next_window_start = time.time() + WINDOWS_SIZE_SECONDS * (1 - OVERLAP)
         # print the majority prediction
         print(f"Predicted activity: {workouts[majority_prediction]}")
 
