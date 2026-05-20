@@ -7,6 +7,8 @@ import joblib
 
 
 class ActivityRecognizer:
+
+    # 
     def __init__(self, frequency, placement):
         self.frequency = frequency
         self.placement = placement
