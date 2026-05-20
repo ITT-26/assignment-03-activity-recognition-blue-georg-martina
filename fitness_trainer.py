@@ -16,9 +16,9 @@ prediction_thread_running = True
 sensor = SensorUDP(PORT)
 
 # screen for each game state
-game_states = ["menu", "exercise_instructions", "exercise_countdown",
+game_states = ["loading", "menu", "exercise_instructions", "exercise_countdown",
                "exercise", "exercise_done"]
-game_state = "menu"
+game_state = "loading"
 
 # what exercise
 current_exercise = None
@@ -93,7 +93,7 @@ is_correct = False
 next_window_time = 0
 
 # activity recognizer
-recognizer = ActivityRecognizer(settings["frequency"], settings["placement"])
+recognizer = None
 
 # all settings
 menu_keys = list(settings.keys())
@@ -243,6 +243,21 @@ sensor.register_callback("button_1", handle_button_1)
 sensor.register_callback("button_2", handle_button_2)
 sensor.register_callback('accelerometer', handle_accelerometer)
 sensor.register_callback('gyroscope', handle_gyroscope)
+
+
+# loading screen while model is being loaded (generated after asking for a loading screen)
+def draw_loading():
+    dots = "." * (int(time.time() * 2) % 3 + 1)
+    label = pyglet.text.Label(
+        f"Loading{dots}",
+        font_size=36,
+        x=WINDOW_WIDTH//2,
+        y=WINDOW_HEIGHT//2,
+        anchor_x="center",
+        anchor_y="center",
+        color=TEXT_COLOR
+    )
+    label.draw()
 
 
 # menu screen
@@ -456,6 +471,7 @@ def draw_exercise_done():
         x=WINDOW_WIDTH//2,
         y=WINDOW_HEIGHT//2,
         anchor_x="center",
+        anchor_y="center",
         color=TEXT_COLOR,
         multiline=True,
         width=WINDOW_WIDTH - 100,
@@ -487,6 +503,8 @@ def on_draw():
         draw_exercise()
     elif game_state == "exercise_done":
         draw_exercise_done()
+    elif game_state == "loading":
+        draw_loading()
 
 
 # thread for prediction
@@ -530,6 +548,19 @@ def prediction_worker():
 
         # sleep for a really short time -> no interference with measurements (we had issues)
         time.sleep(0.00001)
+
+
+# loads recognizer and updates state as soon as its ready
+def load_recognizer():
+    global recognizer, game_state
+    recognizer = ActivityRecognizer(
+        settings["frequency"], settings["placement"])
+    game_state = "menu"
+
+
+# start loading as a thread -> main thread does gui
+loading_thread = threading.Thread(target=load_recognizer, daemon=True)
+loading_thread.start()
 
 
 # gets called every ui frame -> different refresh rate -> thread was needed (just adjusting the refresh rate didn't work)
