@@ -220,7 +220,7 @@ def handle_button_2(data):
         return
 
     # button 2 functionality in exercise done -> go back to menu
-    if game_state == "exercise_done" and exercises_done <= len(exercise_labels):
+    if game_state == "exercise_done" and exercises_done >= len(exercise_labels):
         game_state = "menu"
         exercises_done = 0
         exercises_to_go = ["running", "rowing", "jumpingjacks", "lifting"]
@@ -335,6 +335,8 @@ def select_exercise(exercise):
 
 # random selection of exercise -> remove selected exercise from list -> new one next time
 def randomly_select_exercise():
+    # redo the seed
+    random.seed(time.time())
     choice = random.choice(exercises_to_go)
     select_exercise(choice)
     exercises_to_go.remove(choice)
