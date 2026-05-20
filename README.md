@@ -26,29 +26,35 @@ The notebook can be run to reproduce all comparisons and results.
 
 ## 2.2 The Application
 
-Since all of our configurations delivered solid models we wanted to adjust our application so that the user can choose any combination of parameters (phone placement and sampling frequency).
+Since all of our placement and sampling frequency configurations delivered solid models, we wanted to adjust our application so that the user can choose any combination of those to use the fitness trainer.
 
-For Testing purposes we created continous_prediction_test.py (to run use python continous_prediction_test.py). We used it to configure the parameters in constants.py
+The best models for each case are loaded at the start of the application, as it is more convenient to have them ready than to repeat the wait if the user decides to change the phone placement or frequency after doing a run with different parameters. Even if this means waiting a bit at the start, a dedicated loading screen is shown during this process.
 
-If you want to change some stuff use this script and try to change the constants file according to your desires.
+The user can also choose different durations for each exercise and countdown. This was done with a real fitness trainer in mind: it makes sense that not every type of exercise should last the same amount of time. These options are configured through a settings screen/menu.
 
-In activity_recognizer.py we export a class that gives us a prediction according to the constants. We are using a majority voting system. This means not every data point is deciding for a single point in time. It has to be the most frequent classification in the last few meassurements.
+For testing purposes we created the script continous_prediction_test.py (to run: python continous_prediction_test.py). We used it to configure the parameters in constants.py.
 
-This Recognizer is used in continuous_test_recognizer.py, which works somewhat similar to continous_prediction_test.py but with less prints and the Recognizer. To try it out use: python continous_test_recognizer.py
+If you want to tweak something, use this script and adjust the constants file according to your needs.
 
-The actual application is fitness_trainer.py. To start it use: python fitness_trainer.py
+In activity_recognizer.py we export a class that gives us a prediction based on those constants. We use a majority voting system, meaning not every individual data point determines the classification for a single moment in time, instead, it has to be the most frequent label across the last few measurements.
 
-The usual flow of this script is:
-- menu
-- exercise preview
-- countdown
-- exercise
-- exercise complete screen
+This Recognizer is used in continuous_test_recognizer.py, which works similarly to continous_prediction_test.py but with fewer prints and the Recognizer integrated. To try it out: python continous_test_recognizer.py
 
-Every of these steps gets repeated until there are no more exercises left (the menu screen won't loop)
+The actual application is fitness_trainer.py. To start it: python fitness_trainer.py
 
-The exercises are put in a random order and the User can use their DIPPID-device to control the timing of the exercises (should prevent exhaustion if they need a break)
+The usual flow of the application is:
 
-During the exercise, the user can see, if they are doing it correctly, incorrectly or if the model still has to calculate an evaluation.
+- Menu
+- Settings
+- Exercise preview
+- Countdown
+- Exercise
+- Exercise complete screen
 
-After all the exercises are completed you can start it again with a new order or return to the menu screen.
+Each of these steps is repeated until there are no more exercises left (the menu screen does not loop).
+
+The exercises are presented in a random order, and the user can use their DIPPID device to control the timing, allowing them to take a break if needed and helping prevent exhaustion.
+
+During an exercise, the user can see in real time whether they are performing it correctly, incorrectly, or whether the model is still computing an evaluation.
+
+After all exercises are completed, the user can start again with a new random order or return to the menu screen.
