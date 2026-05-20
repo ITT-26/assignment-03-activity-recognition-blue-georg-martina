@@ -8,23 +8,34 @@ import joblib
 
 class ActivityRecognizer:
 
-    # 
+    # initialization
     def __init__(self, frequency, placement):
+        # frequency and placement for model selection and thresholds
         self.frequency = frequency
         self.placement = placement
+
+        # classifier threshold for the selected frequency and placement
         self.classifier_threshold = CLASSIFIER_THRESHOLDS[f"{frequency}Hz_{placement}"]
+
+        # buffer for current window data and prediction history for majority voting
         buffer_len = WINDOW_SIZE_100HZ if frequency == 100 else WINDOW_SIZE_20HZ
+
+        # dictionary of raw data with max length
         self.dict_tmp = {
             "acc": deque(maxlen=buffer_len),
             "gyro": deque(maxlen=buffer_len),
         }
+
+        # prediction history for majority voting
         self.prediction_history = []
 
+        # loads the models for all combinations
         self.models = {}
         for key in ['20Hz_hand', '20Hz_pocket', '100Hz_hand', '100Hz_pocket']:
             model_filename = f'models_2/{key}_svm_model.joblib'
             self.models[key] = joblib.load(model_filename)
 
+    # change configuration -> update frequency, placement, thresholds and reset buffers and history
     def change_configuration(self, frequency, placement):
         self.frequency = frequency
         self.placement = placement
@@ -37,25 +48,36 @@ class ActivityRecognizer:
         }
         self.prediction_history.clear()
 
+    # the function thats called from the outside -> returns the classified activity
     def return_classification(self):
         features = self.extract_features()
         self.classify_activity(features)
         majority = self.get_majority_prediction()
         return WORKOUTS[majority]
 
+    # classify activity based on a single data point
     def classify_activity(self, features_line):
+        # select model based on frequency and placement
         model_key = f"{self.frequency}Hz_{self.placement}"
         model = self.models.get(model_key)
         if model is not None:
+            # get probabilities and prediction from model
             proba = model.predict_proba(features_line)[0]
             p_max = float(proba.max())
             prediction = model.predict(features_line)[0]
 
+            # if the max probability is above the threshold -> add to prediction history
             if p_max >= self.classifier_threshold:
                 self.prediction_history.append(prediction)
                 if len(self.prediction_history) > MAX_HISTORY_LENGTH:
                     self.prediction_history.pop(0)
+                    
+            else:
+                self.prediction_history.append(None)
+                if len(self.prediction_history) > MAX_HISTORY_LENGTH:
+                    self.prediction_history.pop(0)
 
+    # get the majority prediction from the history
     def get_majority_prediction(self):
         if len(self.prediction_history) < MAX_HISTORY_LENGTH:
             return None
@@ -68,6 +90,7 @@ class ActivityRecognizer:
 
         return None
 
+    # extract features from the current window data (similar to notebook)
     def extract_features(self):
 
         cols_to_evaluate = [
@@ -118,12 +141,14 @@ class ActivityRecognizer:
 
         return pd.DataFrame([feature_list])
 
+    # helper function similar to notebook
     def get_correlation_array(self, a, b):
         if np.std(a) == 0 or np.std(b) == 0:
             return 0.0
         corr = np.corrcoef(a, b)[0, 1]
         return float(corr) if not np.isnan(corr) else 0.0
 
+    # helper function similar to notebook
     def get_dominant_frequency(self, series, sampling_rate):
         series = np.asarray(series)
         n = len(series)

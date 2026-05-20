@@ -1,3 +1,5 @@
+# THIS FILE WAS USED FOR TESTING CONSTANTS FOR THE CLASSIFIER
+
 import time
 from DIPPID import SensorUDP
 import joblib
@@ -8,20 +10,24 @@ from constants import *
 
 sensor = SensorUDP(PORT)
 
+# models from notebook
 models = {}
 for key in ['20Hz_hand', '20Hz_pocket', '100Hz_hand', '100Hz_pocket']:
     model_filename = f'models_2/{key}_svm_model.joblib'
     models[key] = joblib.load(model_filename)
 
+# selected frequnency and placement
 freq = None
 placement = None
 
+# timestamps for windowing
 now = None
 next_window_start = None
 last_time = 0
 
 working_out = False
 
+# gathered data for the current window
 current_acc_data = None
 current_gyro_data = None
 
@@ -45,16 +51,21 @@ while placement not in PLACEMENTS:
     else:
         print("Invalid input, please try again")
 
+
+# buffer for window size
 buffer_len = WINDOW_SIZE_100HZ if freq == 100 else WINDOW_SIZE_20HZ
+
+# classifier for combination of frequency and placement
 classifier_threshold = CLASSIFIER_THRESHOLDS[f"{freq}Hz_{placement}"]
 
+# dictionary of raw data with max length
 dict_tmp = {
     "acc": deque(maxlen=buffer_len),
     "gyro": deque(maxlen=buffer_len),
 }
 
-current_features = None
 
+# history for majority voting
 prediction_history = []
 
 
@@ -68,6 +79,7 @@ workouts = {
 }
 
 
+# helper method similar to notebook
 def get_correlation_array(a, b):
     if np.std(a) == 0 or np.std(b) == 0:
         return 0.0
@@ -75,6 +87,7 @@ def get_correlation_array(a, b):
     return float(corr) if not np.isnan(corr) else 0.0
 
 
+# helper method similar to notebook
 def get_dominant_frequency(series, sampling_rate):
     series = np.asarray(series)
     n = len(series)
@@ -90,6 +103,7 @@ def get_dominant_frequency(series, sampling_rate):
     return float(freqs[1:][np.argmax(fft_magnitude[1:])])
 
 
+# extract features from raw data similar to notebook
 def extract_features():
     global dict_tmp
 
@@ -139,24 +153,31 @@ def extract_features():
     return pd.DataFrame([feature_list])
 
 
+# classifies activity for a single data point
 def classify_activity(features_df_line):
     global models, placement, freq
 
+    # use correct model
     model_key = f"{freq}Hz_{placement}"
     model = models.get(model_key)
     if model is not None:
+
+        # get probabilities and prediction from model
         proba = model.predict_proba(features_df_line)[0]
         p_max = float(proba.max())
         prediction = model.predict(features_df_line)[0]
 
-        print(f"Confidence: {p_max:.2f} → {workouts.get(prediction, '?')}")
+        # for debug -> print probabilities and prediction
+        print(f"Confidence: {p_max:.2f} -> {workouts.get(prediction, '?')}")
 
+        # add it to the history if above threshold -> get majority prediction from history
         if p_max >= classifier_threshold:
             prediction_history.append(prediction)
             if len(prediction_history) > MAX_HISTORY_LENGTH:
                 prediction_history.pop(0)
 
 
+# majority voting for the current history of predictions
 def get_majority_prediction():
     global prediction_history
     if len(prediction_history) < MAX_HISTORY_LENGTH:
@@ -171,6 +192,7 @@ def get_majority_prediction():
     return None
 
 
+# start workout
 def handle_button_1(data):
     global now, next_window_start, freq, working_out
 
@@ -182,10 +204,11 @@ def handle_button_1(data):
     working_out = True
 
 
+# stop workout
 def handle_button_2(data):
 
     # resets data
-    global dict_tmp, current_features, working_out, last_time, next_window_start, prediction_history
+    global dict_tmp, working_out, last_time, next_window_start, prediction_history
 
     if data == 0 or not working_out:
         return
@@ -200,22 +223,24 @@ def handle_button_2(data):
         "gyro": deque(maxlen=buffer_len),
     }
 
-    current_features = None
     last_time = 0
     next_window_start = 0
     prediction_history.clear()
 
 
+# gather acc data
 def acc_callback(data):
     global current_acc_data
     current_acc_data = data
 
 
+# gather gyro data
 def gyro_callback(data):
     global current_gyro_data
     current_gyro_data = data
 
 
+# register callbacks
 sensor.register_callback("button_1", handle_button_1)
 sensor.register_callback("button_2", handle_button_2)
 sensor.register_callback('accelerometer', acc_callback)
