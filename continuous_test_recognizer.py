@@ -1,3 +1,5 @@
+# just to show that it works with the recognizer as well
+
 import time
 from DIPPID import SensorUDP
 from constants import *

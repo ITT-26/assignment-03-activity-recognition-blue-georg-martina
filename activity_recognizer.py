@@ -4,6 +4,7 @@ from constants import *
 from collections import deque
 import pandas as pd
 import joblib
+from model_trainer import ModelTrainer
 
 
 class ActivityRecognizer:
@@ -29,11 +30,16 @@ class ActivityRecognizer:
         # prediction history for majority voting
         self.prediction_history = []
 
-        # loads the models for all combinations
-        self.models = {}
-        for key in ['20Hz_hand', '20Hz_pocket', '100Hz_hand', '100Hz_pocket']:
-            model_filename = f'models_2/{key}_svm_model.joblib'
-            self.models[key] = joblib.load(model_filename)
+        # better Version: loads models from notebook
+        # # loads the models for all combinations
+        # self.models = {}
+        # for key in ['20Hz_hand', '20Hz_pocket', '100Hz_hand', '100Hz_pocket']:
+        #     model_filename = f'models/{key}_svm_model.joblib'
+        #     self.models[key] = joblib.load(model_filename)
+
+        # slower version but wanted in the assignment -> train model before application starts
+        self.model_trainer = ModelTrainer()
+        self.models = self.model_trainer.train_models()
 
     # change configuration -> update frequency, placement, thresholds and reset buffers and history
     def change_configuration(self, frequency, placement):
@@ -71,7 +77,7 @@ class ActivityRecognizer:
                 self.prediction_history.append(prediction)
                 if len(self.prediction_history) > MAX_HISTORY_LENGTH:
                     self.prediction_history.pop(0)
-                    
+
             else:
                 self.prediction_history.append(None)
                 if len(self.prediction_history) > MAX_HISTORY_LENGTH:
