@@ -1,4 +1,4 @@
-# Team Blue (16.5/20P)
+# Team Blue (17/20P)
 
 ## Gathering Training Data (5/6P)
 
@@ -6,7 +6,7 @@
 * DON'T COMMIT ALL THE TRAINING FILES, WE HAVE A SHARED REPO FOR THAT. I DO NOT HAVE UNLIMITED SPACE ON MY LAPTOP AND ALSO I DO NOT HAVE TIME TO WAIT TIL ALL THE DATA IS CLONED FOR EACH REPOSITORY...sorry for raising my voice but almost all of you did that *crying* (-0.5P)
 
 
-## Activity Recognition (11.5/14P)
+## Activity Recognition (12/14P)
 
 #### Evaluation
 
@@ -15,10 +15,10 @@
 
 #### Fitness Trainer
 
-* had to search in the files for the path to the data because it was hard coded  and not compatible with the shared repo (-0.5P)
+* had to search in the files for the path to the data because it was hard coded and not compatible with the shared repo (-0.5P)
 * half of the file names of the shared repo are not compatible with your code. Since this comes from not using the shared repo but importing and adapting it in your repo, I will not duduct points again. But I will use only the compatible files for training the fitness application -> might result in worse recognition
 * training on start and predicting continuously works fine
-* activity recognition works good for lifting and rowing, ok-ish for jumping jacks, and not very well for running (-1P)
+* activity recognition works good for lifting and rowing, ok-ish for jumping jacks, and not very well for running (-1P). However, works fine when using all the data in your assignment repo (+0.5P)
 * a tiny little bit less latency would have been nice (-0.5P)
 * fitness application and custom settings are very nice 
 
