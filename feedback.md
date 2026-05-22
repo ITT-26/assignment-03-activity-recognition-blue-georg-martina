@@ -1,4 +1,4 @@
-# Team Blue (16/20P)
+# Team Blue (16.5/20P)
 
 ## Gathering Training Data (5/6P)
 
@@ -6,12 +6,12 @@
 * DON'T COMMIT ALL THE TRAINING FILES, WE HAVE A SHARED REPO FOR THAT. I DO NOT HAVE UNLIMITED SPACE ON MY LAPTOP AND ALSO I DO NOT HAVE TIME TO WAIT TIL ALL THE DATA IS CLONED FOR EACH REPOSITORY...sorry for raising my voice but almost all of you did that *crying* (-0.5P)
 
 
-## Activity Recognition (11/14P)
+## Activity Recognition (11.5/14P)
 
 #### Evaluation
 
 * very detailed analysis, comparison, and documentation, well done!!
-* separating "hand" and "pocket" into different models is not helpful for enabling your model to detect both? (-1P) 
+* separating "hand" and "pocket" into different models is not helpful for enabling your model to detect both? (-1P) but with allowing the user to choose, this makes sense again (+0.5P)
 
 #### Fitness Trainer
 
